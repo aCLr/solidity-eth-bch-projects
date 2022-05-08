@@ -1,0 +1,1 @@
+Implemented ideas from https://www.interviewbit.com/blog/blockchain-projects/
