@@ -16,7 +16,7 @@ contract TestSender {
     Sender sender;
 
     function beforeEach() public {
-        // <instantiate contract>
+        // <instantiate foo>
         sender = new Sender();
     }
 
