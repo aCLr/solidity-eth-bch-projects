@@ -10,8 +10,21 @@ const TimeLockWallet = artifacts.require("TimeLockWallet");
 contract("TimeLockWallet", function ([owner, acc1]) {
   let instance
   before(async () => {
-    instance = await TimeLockWallet.new(60);
+    instance = await TimeLockWallet.new(600);
   })
+
+  it("should lock with time", async() => {
+    const value = web3.utils.toWei('0.01');
+    let balanceTracker = await balance.tracker(instance.address);
+
+    expectEvent(
+        await instance.lockWithTime(value, 1, {from: owner}),
+        "Locked", {amount: value});
+
+    assert.equal(await instance.freeWei(), 0, "invalid free amount")
+    assert.equal(await instance.lockedWei(), value, "invalid locked amount")
+    assert.equal(await balanceTracker.delta(), value, "invalid initial balance");
+  });
 
   it("received without lock if not from owner", async() => {
     const value = web3.utils.toWei('1');
@@ -52,14 +65,21 @@ contract("TimeLockWallet", function ([owner, acc1]) {
   })
 
   it("should be unlocked during receive", async() => {
+    const lockedValue = web3.utils.toWei('1.32');
     const value = web3.utils.toWei('0.5')
 
     await time.increase(10000);
     assert.equal(await instance.freeWei(), 0, "invalid free money");
+    assert.equal(await instance.lockedWei(), lockedValue, "invalid free money");
     expectEvent(
-        await instance.sendTransaction({from: acc1, value: web3.utils.toWei('0.0001')}),
-        "Unlocked", {amount: value});
+        await instance.sendTransaction({from: acc1, value: value}),
+        "Unlocked", {amount: lockedValue});
 
-    assert.equal(await instance.freeWei(), web3.utils.toWei('1.32'), "invalid free money");
+    assert.equal(await instance.lockedWei(), 0, "invalid locked money");
+    assert.equal(await instance.freeWei(), value, "invalid free money");
+  })
+
+  it("should unlock during send", async() => {
+
   })
 });

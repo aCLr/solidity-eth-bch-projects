@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract TimeLockWallet is Ownable {
 
 
-  uint[] freeTimes;
+  uint[] public freeTimes;
   uint lockTime;
   uint public nextFreeTime;
 
@@ -36,18 +36,26 @@ contract TimeLockWallet is Ownable {
     }
   }
 
-  function lockReceived() internal onlyOwner {
-    uint256 n = block.timestamp + lockTime;
-    if (n < nextFreeTime) {
-      nextFreeTime = n;
-    }
-    freeTimes.push(n);
-    unlockMoments[n] = lockedMoney(freeTimes.length - 1, msg.value);
-    lockedWei += msg.value;
-    emit Locked(msg.value);
+  function lockReceived() external onlyOwner {
+    lockWithTime(block.timestamp + lockTime, msg.value);
   }
 
-  function send(address payable _addr, uint64 value) external onlyOwner {
+  function lockWithTime(uint _value, uint _lockTime) external onlyOwner {
+    if (_lockTime < nextFreeTime || nextFreeTime == 0) {
+      nextFreeTime = _lockTime;
+    }
+    freeTimes.push(_lockTime);
+    unlockMoments[_lockTime] = lockedMoney(freeTimes.length - 1, _value);
+    lockedWei += _value;
+    emit Locked(_value);
+  }
+
+  function moveToLocked(uint _value) external onlyOwner {
+    require(freeWei >= _value, "not enough fre money");
+    lockReceived(block.timestamp + lockTime, msg.value);
+  }
+
+  function send(address payable _addr, uint value) external onlyOwner {
     unlockIfNeeds();
     require(freeWei >= value, "not enough free money");
     require(address(this).balance >= value, 'insufficient funds');
@@ -55,10 +63,15 @@ contract TimeLockWallet is Ownable {
     _addr.transfer(value);
   }
 
+  function unlock() external onlyOwner {
+    unlockIfNeeds();
+  }
+
   function unlockIfNeeds() internal {
     if (block.timestamp < nextFreeTime || freeTimes.length == 0) {
       return;
     }
+
     lockedMoney memory u = unlockMoments[nextFreeTime];
     delete unlockMoments[nextFreeTime];
     freeWei += u.amount;
@@ -66,9 +79,18 @@ contract TimeLockWallet is Ownable {
 
     if (freeTimes.length > 1) {
       freeTimes[u.idx] = freeTimes[freeTimes.length-1];
+      nextFreeTime = freeTimes[0];
     }
     freeTimes.pop();
     emit Unlocked(u.amount);
-    nextFreeTime =  freeTimes[freeTimes.length-1];
+
+    for (uint i = 0; i < freeTimes.length; i++) {
+      if (freeTimes[i] < nextFreeTime) {
+        nextFreeTime = freeTimes[i];
+      }
+    }
+
+    nextFreeTime = freeTimes[freeTimes.length-1];
+    unlockIfNeeds();
   }
 }
